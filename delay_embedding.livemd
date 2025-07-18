@@ -1,0 +1,346 @@
+# Delay Embedding Analysis with Visualization
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.12.0"},
+  {:kino_vega_lite, "~> 0.1.11"},
+  {:vega_lite, "~> 0.1.8"},
+  {:delay_embedding, path: __DIR__}
+])
+```
+
+## Introduction
+
+This LiveBook demonstrates the capabilities of the DelayEmbedding module for analyzing time series data. Delay embedding is a fundamental technique in dynamical systems analysis that reconstructs the state space of a system from a single time series observation.
+
+## Helper Functions for Visualization
+
+```elixir
+defmodule VisualizationHelpers do
+  @doc """
+  Generates synthetic time series data for demonstration purposes.
+  """
+  def generate_sine_wave(n_points, frequency \\ 1.0, amplitude \\ 1.0, noise_level \\ 0.1) do
+    for i <- 0..(n_points - 1) do
+      t = i / n_points * 4 * :math.pi
+      signal = amplitude * :math.sin(frequency * t)
+      noise = noise_level * (:rand.normal() - 0.5)
+      signal + noise
+    end
+  end
+  
+  def generate_lorenz_attractor(n_points \\ 1000, dt \\ 0.01) do
+    # Lorenz system parameters
+    sigma = 10.0
+    rho = 28.0
+    beta = 8.0/3.0
+    
+    # Initial conditions
+    x = 1.0
+    y = 1.0
+    z = 1.0
+    
+    # Generate trajectory
+    {trajectory, _, _, _} = 
+      Enum.reduce(1..n_points, {[], x, y, z}, fn _, {acc, x, y, z} ->
+        # Lorenz equations
+        dx = sigma * (y - x)
+        dy = x * (rho - z) - y
+        dz = x * y - beta * z
+        
+        # Update state
+        new_x = x + dx * dt
+        new_y = y + dy * dt
+        new_z = z + dz * dt
+        
+        {[new_x | acc], new_x, new_y, new_z}
+      end)
+    
+    Enum.reverse(trajectory)
+  end
+  
+  def generate_van_der_pol(n_points \\ 1000, dt \\ 0.01, mu \\ 2.0) do
+    # Van der Pol oscillator
+    x = 0.1
+    y = 0.1
+    
+    {trajectory, _, _} = 
+      Enum.reduce(1..n_points, {[], x, y}, fn _, {acc, x, y} ->
+        # Van der Pol equations
+        dx = y
+        dy = mu * (1 - x * x) * y - x
+        
+        # Update state
+        new_x = x + dx * dt
+        new_y = y + dy * dt
+        
+        {[new_x | acc], new_x, new_y}
+      end)
+    
+    Enum.reverse(trajectory)
+  end
+  
+  def create_time_series_plot(data, title \\ "Time Series") do
+    indexed_data = data |> Enum.with_index() |> Enum.map(fn {val, idx} -> %{time: idx, value: val} end)
+    
+    VegaLite.new(width: 600, height: 300, title: title)
+    |> VegaLite.data_from_values(indexed_data)
+    |> VegaLite.mark(:line)
+    |> VegaLite.encode_field(:x, "time", type: :quantitative, title: "Time")
+    |> VegaLite.encode_field(:y, "value", type: :quantitative, title: "Value")
+  end
+  
+  def create_phase_portrait(embedded_data, title \\ "Phase Portrait") do
+    case embedded_data do
+      [] -> 
+        VegaLite.new(width: 400, height: 400, title: "No data")
+      
+      [first_vector | _] when length(first_vector) >= 2 ->
+        plot_data = embedded_data |> Enum.map(fn [x, y | _] -> %{x: x, y: y} end)
+        
+        VegaLite.new(width: 400, height: 400, title: title)
+        |> VegaLite.data_from_values(plot_data)
+        |> VegaLite.mark(:circle, size: 30, opacity: 0.7)
+        |> VegaLite.encode_field(:x, "x", type: :quantitative, title: "X(t)")
+        |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "X(t-τ)")
+      
+      _ ->
+        VegaLite.new(width: 400, height: 400, title: "Invalid embedding dimension for 2D plot")
+    end
+  end
+  
+  def create_3d_phase_portrait(embedded_data, title \\ "3D Phase Portrait") do
+    case embedded_data do
+      [] -> 
+        VegaLite.new(width: 400, height: 400, title: "No data")
+      
+      [first_vector | _] when length(first_vector) >= 3 ->
+        plot_data = embedded_data 
+        |> Enum.with_index() 
+        |> Enum.map(fn {[x, y, z | _], idx} -> %{x: x, y: y, z: z, index: idx} end)
+        
+        VegaLite.new(width: 400, height: 400, title: title)
+        |> VegaLite.data_from_values(plot_data)
+        |> VegaLite.mark(:circle, size: 30, opacity: 0.7)
+        |> VegaLite.encode_field(:x, "x", type: :quantitative, title: "X(t)")
+        |> VegaLite.encode_field(:y, "y", type: :quantitative, title: "X(t-τ)")
+        |> VegaLite.encode_field(:color, "z", type: :quantitative, title: "X(t-2τ)")
+      
+      _ ->
+        VegaLite.new(width: 400, height: 400, title: "Invalid embedding dimension for 3D plot")
+    end
+  end
+  
+  def create_autocorrelation_plot(data, max_lag \\ 50) do
+    autocorrelations = for lag <- 0..max_lag do
+      %{lag: lag, autocorrelation: DelayEmbedding.autocorrelation(data, lag)}
+    end
+    
+    VegaLite.new(width: 600, height: 300, title: "Autocorrelation Function")
+    |> VegaLite.data_from_values(autocorrelations)
+    |> VegaLite.mark(:line)
+    |> VegaLite.encode_field(:x, "lag", type: :quantitative, title: "Lag")
+    |> VegaLite.encode_field(:y, "autocorrelation", type: :quantitative, title: "Autocorrelation")
+  end
+end
+```
+
+## Example 1: Simple Sine Wave
+
+Let's start with a simple sine wave to understand the basic concepts:
+
+```elixir
+# Generate a sine wave
+sine_data = VisualizationHelpers.generate_sine_wave(200, 2.0, 1.0, 0.1)
+
+# Display the original time series
+VisualizationHelpers.create_time_series_plot(sine_data, "Sine Wave Time Series")
+```
+
+Now let's create a delay embedding and visualize the phase portrait:
+
+```elixir
+# Create 2D embedding
+embedded_sine = DelayEmbedding.embed(sine_data, 2, 5)
+
+# Visualize the phase portrait
+VisualizationHelpers.create_phase_portrait(embedded_sine, "Sine Wave Phase Portrait (2D)")
+```
+
+Let's also look at the autocorrelation function to understand the delay selection:
+
+```elixir
+# Plot autocorrelation function
+VisualizationHelpers.create_autocorrelation_plot(sine_data, 30)
+```
+
+```elixir
+# Show estimated parameters
+estimated_dim = DelayEmbedding.estimate_embedding_dimension(sine_data)
+estimated_delay = DelayEmbedding.estimate_delay(sine_data)
+
+IO.puts("Estimated embedding dimension: #{estimated_dim}")
+IO.puts("Estimated delay: #{estimated_delay}")
+```
+
+## Example 2: Lorenz Attractor
+
+The Lorenz attractor is a classic example of a chaotic system. Let's see how delay embedding reconstructs its structure:
+
+```elixir
+# Generate Lorenz attractor data (x-coordinate only)
+lorenz_data = VisualizationHelpers.generate_lorenz_attractor(2000, 0.01)
+
+# Display the time series
+VisualizationHelpers.create_time_series_plot(lorenz_data, "Lorenz Attractor X-coordinate")
+```
+
+```elixir
+# Create 2D embedding
+embedded_lorenz_2d = DelayEmbedding.embed(lorenz_data, 2, 10)
+
+# Visualize 2D phase portrait
+VisualizationHelpers.create_phase_portrait(embedded_lorenz_2d, "Lorenz Attractor Phase Portrait (2D)")
+```
+
+```elixir
+# Create 3D embedding for better reconstruction
+embedded_lorenz_3d = DelayEmbedding.embed(lorenz_data, 3, 10)
+
+# Visualize 3D phase portrait (color represents third dimension)
+VisualizationHelpers.create_3d_phase_portrait(embedded_lorenz_3d, "Lorenz Attractor Phase Portrait (3D)")
+```
+
+## Example 3: Van der Pol Oscillator
+
+The Van der Pol oscillator is another classic nonlinear system:
+
+```elixir
+# Generate Van der Pol oscillator data
+vdp_data = VisualizationHelpers.generate_van_der_pol(1000, 0.05, 2.0)
+
+# Display the time series
+VisualizationHelpers.create_time_series_plot(vdp_data, "Van der Pol Oscillator")
+```
+
+```elixir
+# Create 2D embedding with automatic parameter estimation
+embedded_vdp = DelayEmbedding.embed_auto(vdp_data)
+
+# Visualize phase portrait
+VisualizationHelpers.create_phase_portrait(embedded_vdp, "Van der Pol Phase Portrait (Auto Parameters)")
+```
+
+## Analysis Tools
+
+Let's create some analysis tools to better understand the embedding quality:
+
+```elixir
+defmodule EmbeddingAnalysis do
+  @doc """
+  Computes the correlation dimension using the Grassberger-Procaccia algorithm.
+  This is a simplified version for demonstration.
+  """
+  def correlation_dimension(embedded_data, max_radius \\ 1.0, n_radii \\ 20) do
+    n_points = length(embedded_data)
+    
+    if n_points < 2 do
+      0.0
+    else
+      radii = for i <- 1..n_radii, do: max_radius * i / n_radii
+      
+      correlations = Enum.map(radii, fn r ->
+        count = count_pairs_within_radius(embedded_data, r)
+        correlation = count / (n_points * (n_points - 1) / 2)
+        {r, max(correlation, 1.0e-10)}  # Avoid log(0)
+      end)
+      
+      # Fit line to log-log plot to estimate dimension
+      estimate_slope(correlations)
+    end
+  end
+  
+  defp count_pairs_within_radius(embedded_data, radius) do
+    embedded_data
+    |> Enum.with_index()
+    |> Enum.map(fn {point1, i} ->
+      embedded_data
+      |> Enum.drop(i + 1)
+      |> Enum.count(fn point2 -> euclidean_distance(point1, point2) < radius end)
+    end)
+    |> Enum.sum()
+  end
+  
+  defp euclidean_distance(point1, point2) do
+    point1
+    |> Enum.zip(point2)
+    |> Enum.map(fn {x, y} -> (x - y) * (x - y) end)
+    |> Enum.sum()
+    |> :math.sqrt()
+  end
+  
+  defp estimate_slope(correlations) do
+    log_data = Enum.map(correlations, fn {r, c} -> {:math.log(r), :math.log(c)} end)
+    
+    n = length(log_data)
+    sum_x = Enum.sum(Enum.map(log_data, fn {x, _} -> x end))
+    sum_y = Enum.sum(Enum.map(log_data, fn {_, y} -> y end))
+    sum_xy = Enum.sum(Enum.map(log_data, fn {x, y} -> x * y end))
+    sum_x2 = Enum.sum(Enum.map(log_data, fn {x, _} -> x * x end))
+    
+    if n * sum_x2 - sum_x * sum_x == 0 do
+      0.0
+    else
+      (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+    end
+  end
+end
+```
+
+```elixir
+# Analyze different systems
+systems = [
+  {"Sine Wave", VisualizationHelpers.generate_sine_wave(300, 2.0, 1.0, 0.1)},
+  {"Lorenz Attractor", VisualizationHelpers.generate_lorenz_attractor(500, 0.01)},
+  {"Van der Pol", VisualizationHelpers.generate_van_der_pol(500, 0.05, 2.0)}
+]
+
+analysis_results = Enum.map(systems, fn {name, data} ->
+  embedded = DelayEmbedding.embed_auto(data)
+  estimated_dim = DelayEmbedding.estimate_embedding_dimension(data)
+  estimated_delay = DelayEmbedding.estimate_delay(data)
+  
+  %{
+    system: name,
+    data_length: length(data),
+    estimated_dimension: estimated_dim,
+    estimated_delay: estimated_delay,
+    embedded_points: length(embedded)
+  }
+end)
+
+# Display results
+Kino.DataTable.new(analysis_results, name: "Embedding Analysis Results")
+```
+
+## Key Takeaways
+
+1. **Delay embedding** allows us to reconstruct the dynamics of a system from a single time series
+2. **Parameter selection** is crucial:
+   * Embedding dimension should be sufficient to unfold the attractor
+   * Delay should be large enough to provide independent coordinates but not too large to lose correlation
+3. **Visualization** helps understand the underlying dynamics:
+   * Simple periodic systems create closed curves
+   * Chaotic systems create complex, non-overlapping structures
+4. **Different systems** require different embedding parameters for optimal reconstruction
+
+## Further Exploration
+
+Try modifying the parameters and exploring different time series:
+
+* Experiment with different noise levels
+* Try different frequencies for the sine wave
+* Adjust the parameters of the chaotic systems
+* Implement more sophisticated parameter estimation methods
+
+This LiveBook demonstrates the power of delay embedding for analyzing time series data and provides a foundation for more advanced dynamical systems analysis.
