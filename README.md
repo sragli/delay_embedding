@@ -46,3 +46,15 @@ DelayEmbedding.validate_parameters(data, 3, 2)
 ```
 
 The module is designed to be efficient and handles edge cases gracefully. For production use with large datasets, you might want to consider using more sophisticated parameter estimation methods like False Nearest Neighbors for embedding dimension or Mutual Information for delay estimation.
+
+## How Delay Embedding Works
+
+A dynamical system is the tuple (M, f, T), where M is a manifold (in our case, an Euclidean space), T is time domain and f is an evolution rule t → f<sup>
+t</sup> (t ∈ T) such that f<sup>t</sup> is a diffeomorphism of the manifold to itself. In other terms, f(t) is a diffeomorphism, for every time t in the d
+omain T [Wikipedia](https://en.wikipedia.org/wiki/Dynamical_system). We define this f function as a transformation to represent the temporal distance of d
+ata points as spatial distance of states.
+
+## Citations
+
+* Takens F. (1981) Detecting strange attractors in turbulence. In: Rand D., Young LS. (eds) Dynamical Systems and Turbulence, Warwick 1980. Lecture Notes 
+in Mathematics, vol 898., doi:10.1007/BFb0091924
