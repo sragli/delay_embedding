@@ -14,11 +14,12 @@ defmodule DelayEmbedding do
   ## Returns
   A list of embedded vectors, where each vector is a list of `embedding_dimension` values.
   """
-  def embed(data, embedding_dimension, delay) when is_list(data) and
-                                                   is_integer(embedding_dimension) and
-                                                   embedding_dimension > 0 and
-                                                   is_integer(delay) and
-                                                   delay > 0 do
+  def embed(data, embedding_dimension, delay)
+      when is_list(data) and
+             is_integer(embedding_dimension) and
+             embedding_dimension > 0 and
+             is_integer(delay) and
+             delay > 0 do
     data_length = length(data)
 
     # Calculate the number of embedded vectors we can create
@@ -28,7 +29,10 @@ defmodule DelayEmbedding do
       []
     else
       # Convert list to indexed map for efficient random access
-      indexed_data = data |> Enum.with_index() |> Map.new(fn {val, idx} -> {idx, val} end)
+      indexed_data =
+        data
+        |> Enum.with_index()
+        |> Map.new(fn {val, idx} -> {idx, val} end)
 
       # Generate embedded vectors
       for i <- 0..(num_vectors - 1) do
@@ -61,8 +65,30 @@ defmodule DelayEmbedding do
   end
 
   @doc """
-  Estimates the embedding dimension using a simple heuristic.
+  Validates that the embedding parameters are feasible for the given data.
+  """
+  def validate_parameters(data, embedding_dimension, delay) when is_list(data) do
+    data_length = length(data)
+    required_length = (embedding_dimension - 1) * delay + 1
 
+    cond do
+      data_length < required_length ->
+        {:error,
+         "Data length (#{data_length}) is insufficient for embedding dimension #{embedding_dimension} and delay #{delay}. Need at least #{required_length} points."}
+
+      embedding_dimension < 1 ->
+        {:error, "Embedding dimension must be positive"}
+
+      delay < 1 ->
+        {:error, "Delay must be positive"}
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc """
+  Estimates the embedding dimension using a simple heuristic.
   This is a basic implementation. For more sophisticated estimation,
   consider implementing methods like False Nearest Neighbors.
   """
@@ -77,11 +103,13 @@ defmodule DelayEmbedding do
   Finds the first minimum of the autocorrelation function as an estimate for delay.
   """
   def estimate_delay(data) when is_list(data) do
-    max_lag = min(Integer.floor_div(length(data), 4), 50)  # Limit search to reasonable range
+    # Limit search to reasonable range
+    max_lag = min(Integer.floor_div(length(data), 4), 50)
 
-    autocorrelations = for lag <- 1..max_lag do
-      {lag, autocorrelation(data, lag)}
-    end
+    autocorrelations =
+      for lag <- 1..max_lag do
+        {lag, autocorrelation(data, lag)}
+      end
 
     # Find first local minimum
     find_first_minimum(autocorrelations) || 1
@@ -117,36 +145,17 @@ defmodule DelayEmbedding do
     end
   end
 
-  @doc """
-  Validates that the embedding parameters are feasible for the given data.
-  """
-  def validate_parameters(data, embedding_dimension, delay) when is_list(data) do
-    data_length = length(data)
-    required_length = (embedding_dimension - 1) * delay + 1
-
-    cond do
-      data_length < required_length ->
-        {:error, "Data length (#{data_length}) is insufficient for embedding dimension #{embedding_dimension} and delay #{delay}. Need at least #{required_length} points."}
-
-      embedding_dimension < 1 ->
-        {:error, "Embedding dimension must be positive"}
-
-      delay < 1 ->
-        {:error, "Delay must be positive"}
-
-      true ->
-        :ok
-    end
-  end
-
   defp find_first_minimum([]), do: nil
   defp find_first_minimum([{lag, _}]), do: lag
+
   defp find_first_minimum([{_lag1, val1}, {lag2, val2} | rest]) do
     if val1 > val2 do
       find_first_minimum([{lag2, val2} | rest])
     else
       case rest do
-        [] -> lag2
+        [] ->
+          lag2
+
         [{_lag3, val3} | _] ->
           if val2 < val3, do: lag2, else: find_first_minimum([{lag2, val2} | rest])
       end
