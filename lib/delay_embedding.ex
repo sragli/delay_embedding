@@ -1,10 +1,6 @@
 defmodule DelayEmbedding do
   @moduledoc """
   Module for computing delay embedding of time series data.
-
-  Delay embedding is a technique used in dynamical systems analysis to reconstruct
-  the state space of a system from a single time series. It creates a higher-dimensional
-  representation by using time-delayed versions of the original signal.
   """
 
   @doc """
@@ -17,14 +13,6 @@ defmodule DelayEmbedding do
 
   ## Returns
   A list of embedded vectors, where each vector is a list of `embedding_dimension` values.
-
-  ## Examples
-
-      iex> DelayEmbedding.embed([1, 2, 3, 4, 5, 6], 3, 1)
-      [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5, 6]]
-
-      iex> DelayEmbedding.embed([1, 2, 3, 4, 5, 6], 2, 2)
-      [[1, 3], [2, 4], [3, 5], [4, 6]]
   """
   def embed(data, embedding_dimension, delay) when is_list(data) and
                                                    is_integer(embedding_dimension) and
@@ -62,10 +50,8 @@ defmodule DelayEmbedding do
     - `:embedding_dimension` - If not provided, uses a heuristic based on data length
     - `:delay` - If not provided, estimates using first minimum of autocorrelation
 
-  ## Examples
-
-      iex> DelayEmbedding.embed_auto([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-      # Returns embedding with estimated parameters
+  ## Returns
+  Embedding with estimated parameters.
   """
   def embed_auto(data, opts \\ []) when is_list(data) do
     embedding_dimension = opts[:embedding_dimension] || estimate_embedding_dimension(data)
@@ -88,7 +74,6 @@ defmodule DelayEmbedding do
 
   @doc """
   Estimates the delay using autocorrelation analysis.
-
   Finds the first minimum of the autocorrelation function as an estimate for delay.
   """
   def estimate_delay(data) when is_list(data) do

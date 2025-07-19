@@ -2,6 +2,8 @@
 
 Elixir module for computing delay embedding of time series data.
 
+Delay embedding is a technique used in dynamical systems analysis to reconstruct the state space of a system from a single time series. It creates a higher-dimensional representation by using time-delayed versions of the original signal.
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
@@ -29,7 +31,7 @@ end
 * Autocorrelation Analysis: Computes autocorrelation to find optimal delay
 * Validation: Ensures parameters are compatible with data length
 
-## Usage examples
+## Usage
 
 ```elixir
 # Basic usage with specified parameters
