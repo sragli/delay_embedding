@@ -111,7 +111,6 @@ defmodule DelayEmbedding do
         {lag, autocorrelation(data, lag)}
       end
 
-    # Find first local minimum
     find_first_minimum(autocorrelations) || 1
   end
 

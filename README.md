@@ -19,8 +19,8 @@ end
 
 ## Functions
 
-* *embed/3* - Main function for computing delay embedding with specified parameters
-* *embed_auto/2* - Automatic parameter estimation for convenience
+* `embed/3` - Main function for computing delay embedding with specified parameters
+* `embed_auto/2` - Automatic parameter estimation for convenience
 
 ## Key features
 
