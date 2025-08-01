@@ -14,12 +14,8 @@ defmodule DelayEmbedding do
   ## Returns
   A list of embedded vectors, where each vector is a list of `embedding_dimension` values.
   """
-  def embed(data, embedding_dimension, delay)
-      when is_list(data) and
-             is_integer(embedding_dimension) and
-             embedding_dimension > 0 and
-             is_integer(delay) and
-             delay > 0 do
+  @spec embed(list(), pos_integer(), pos_integer()) :: list()
+  def embed(data, embedding_dimension, delay) when embedding_dimension > 0 and delay > 0 do
     data_length = length(data)
 
     # Calculate the number of embedded vectors we can create
@@ -57,6 +53,7 @@ defmodule DelayEmbedding do
   ## Returns
   Embedding with estimated parameters.
   """
+  @spec embed_auto(list()) :: list()
   def embed_auto(data, opts \\ []) when is_list(data) do
     embedding_dimension = opts[:embedding_dimension] || estimate_embedding_dimension(data)
     delay = opts[:delay] || estimate_delay(data)
@@ -67,7 +64,9 @@ defmodule DelayEmbedding do
   @doc """
   Validates that the embedding parameters are feasible for the given data.
   """
-  def validate_parameters(data, embedding_dimension, delay) when is_list(data) do
+  @spec validate_parameters(list(), pos_integer(), pos_integer()) ::
+          :ok | {:error, <<_::64, _::_*8>>}
+  def validate_parameters(data, embedding_dimension, delay) do
     data_length = length(data)
     required_length = (embedding_dimension - 1) * delay + 1
 
@@ -92,7 +91,8 @@ defmodule DelayEmbedding do
   This is a basic implementation. For more sophisticated estimation,
   consider implementing methods like False Nearest Neighbors.
   """
-  def estimate_embedding_dimension(data) when is_list(data) do
+  @spec estimate_embedding_dimension(list()) :: integer()
+  def estimate_embedding_dimension(data) do
     # Simple heuristic: use 2 * log10(N) where N is data length
     data_length = length(data)
     max(2, round(2 * :math.log10(data_length)))
@@ -102,7 +102,8 @@ defmodule DelayEmbedding do
   Estimates the delay using autocorrelation analysis.
   Finds the first minimum of the autocorrelation function as an estimate for delay.
   """
-  def estimate_delay(data) when is_list(data) do
+  @spec estimate_delay(list()) :: pos_integer() | nil
+  def estimate_delay(data) do
     # Limit search to reasonable range
     max_lag = min(Integer.floor_div(length(data), 4), 50)
 
@@ -117,31 +118,30 @@ defmodule DelayEmbedding do
   @doc """
   Computes the autocorrelation of a time series at a given lag.
   """
-  def autocorrelation(data, lag) when is_list(data) and is_integer(lag) and lag >= 0 do
-    if lag >= length(data) do
-      0.0
-    else
-      n = length(data) - lag
-      mean_val = Enum.sum(data) / length(data)
+  @spec autocorrelation(list(), non_neg_integer()) :: float()
+  def autocorrelation(data, lag) when lag < length(data), do: 0.0
 
-      # Compute lagged covariance
-      covariance =
-        data
-        |> Enum.take(n)
-        |> Enum.zip(Enum.drop(data, lag))
-        |> Enum.map(fn {x, y} -> (x - mean_val) * (y - mean_val) end)
-        |> Enum.sum()
-        |> Kernel./(n)
+  def autocorrelation(data, lag) do
+    n = length(data) - lag
+    mean_val = Enum.sum(data) / length(data)
 
-      # Compute variance
-      variance =
-        data
-        |> Enum.map(fn x -> (x - mean_val) * (x - mean_val) end)
-        |> Enum.sum()
-        |> Kernel./(length(data))
+    # Compute lagged covariance
+    covariance =
+      data
+      |> Enum.take(n)
+      |> Enum.zip(Enum.drop(data, lag))
+      |> Enum.map(fn {x, y} -> (x - mean_val) * (y - mean_val) end)
+      |> Enum.sum()
+      |> Kernel./(n)
 
-      if variance == 0, do: 0.0, else: covariance / variance
-    end
+    # Compute variance
+    variance =
+      data
+      |> Enum.map(fn x -> (x - mean_val) * (x - mean_val) end)
+      |> Enum.sum()
+      |> Kernel./(length(data))
+
+    if variance == 0, do: 0.0, else: covariance / variance
   end
 
   defp find_first_minimum([]), do: nil

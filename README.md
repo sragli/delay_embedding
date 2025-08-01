@@ -29,7 +29,6 @@ end
   * Embedding dimension using a heuristic based on data length
   * Delay estimation using autocorrelation analysis
 * Autocorrelation Analysis: Computes autocorrelation to find optimal delay
-* Validation: Ensures parameters are compatible with data length
 
 ## Usage
 
