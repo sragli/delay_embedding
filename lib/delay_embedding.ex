@@ -156,11 +156,13 @@ defmodule DelayEmbedding do
     else
       radii = for i <- 1..n_radii, do: max_radius * i / n_radii
 
-      correlations = Enum.map(radii, fn r ->
-        count = count_pairs_within_radius(embedded_data, r)
-        correlation = count / (n_points * (n_points - 1) / 2)
-        {r, max(correlation, 1.0e-10)}  # Avoid log(0)
-      end)
+      correlations =
+        Enum.map(radii, fn r ->
+          count = count_pairs_within_radius(embedded_data, r)
+          correlation = count / (n_points * (n_points - 1) / 2)
+          # Avoid log(0)
+          {r, max(correlation, 1.0e-10)}
+        end)
 
       # Fit line to log-log plot to estimate dimension
       estimate_slope(correlations)

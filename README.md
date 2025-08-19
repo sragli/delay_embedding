@@ -55,5 +55,4 @@ ata points as spatial distance of states.
 
 ## Citations
 
-* Takens F. (1981) Detecting strange attractors in turbulence. In: Rand D., Young LS. (eds) Dynamical Systems and Turbulence, Warwick 1980. Lecture Notes 
-in Mathematics, vol 898., doi:10.1007/BFb0091924
+* Takens F. (1981) Detecting strange attractors in turbulence. In: Rand D., Young LS. (eds) Dynamical Systems and Turbulence, Warwick 1980. Lecture Notes in Mathematics, vol 898., doi:10.1007/BFb0091924
