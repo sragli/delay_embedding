@@ -144,6 +144,64 @@ defmodule DelayEmbedding do
     if variance == 0, do: 0.0, else: covariance / variance
   end
 
+  @doc """
+  Computes the correlation dimension using the Grassberger-Procaccia algorithm.
+  This is a simplified version.
+  """
+  def correlation_dimension(embedded_data, max_radius \\ 1.0, n_radii \\ 20) do
+    n_points = length(embedded_data)
+
+    if n_points < 2 do
+      0.0
+    else
+      radii = for i <- 1..n_radii, do: max_radius * i / n_radii
+
+      correlations = Enum.map(radii, fn r ->
+        count = count_pairs_within_radius(embedded_data, r)
+        correlation = count / (n_points * (n_points - 1) / 2)
+        {r, max(correlation, 1.0e-10)}  # Avoid log(0)
+      end)
+
+      # Fit line to log-log plot to estimate dimension
+      estimate_slope(correlations)
+    end
+  end
+
+  defp count_pairs_within_radius(embedded_data, radius) do
+    embedded_data
+    |> Enum.with_index()
+    |> Enum.map(fn {point1, i} ->
+      embedded_data
+      |> Enum.drop(i + 1)
+      |> Enum.count(fn point2 -> euclidean_distance(point1, point2) < radius end)
+    end)
+    |> Enum.sum()
+  end
+
+  defp euclidean_distance(point1, point2) do
+    point1
+    |> Enum.zip(point2)
+    |> Enum.map(fn {x, y} -> (x - y) * (x - y) end)
+    |> Enum.sum()
+    |> :math.sqrt()
+  end
+
+  defp estimate_slope(correlations) do
+    log_data = Enum.map(correlations, fn {r, c} -> {:math.log(r), :math.log(c)} end)
+
+    n = length(log_data)
+    sum_x = Enum.sum(Enum.map(log_data, fn {x, _} -> x end))
+    sum_y = Enum.sum(Enum.map(log_data, fn {_, y} -> y end))
+    sum_xy = Enum.sum(Enum.map(log_data, fn {x, y} -> x * y end))
+    sum_x2 = Enum.sum(Enum.map(log_data, fn {x, _} -> x * x end))
+
+    if n * sum_x2 - sum_x * sum_x == 0 do
+      0.0
+    else
+      (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+    end
+  end
+
   defp find_first_minimum([]), do: nil
   defp find_first_minimum([{lag, _}]), do: lag
 

@@ -231,74 +231,9 @@ embedded_vdp = DelayEmbedding.embed_auto(vdp_data)
 VisualizationHelpers.create_phase_portrait(embedded_vdp, "Van der Pol Phase Portrait (Auto Parameters)")
 ```
 
-## Analysis Tools
-
-Let's create some analysis tools to better understand the embedding quality:
+## Analysis of different systems
 
 ```elixir
-defmodule EmbeddingAnalysis do
-  @doc """
-  Computes the correlation dimension using the Grassberger-Procaccia algorithm.
-  This is a simplified version for demonstration.
-  """
-  def correlation_dimension(embedded_data, max_radius \\ 1.0, n_radii \\ 20) do
-    n_points = length(embedded_data)
-    
-    if n_points < 2 do
-      0.0
-    else
-      radii = for i <- 1..n_radii, do: max_radius * i / n_radii
-      
-      correlations = Enum.map(radii, fn r ->
-        count = count_pairs_within_radius(embedded_data, r)
-        correlation = count / (n_points * (n_points - 1) / 2)
-        {r, max(correlation, 1.0e-10)}  # Avoid log(0)
-      end)
-      
-      # Fit line to log-log plot to estimate dimension
-      estimate_slope(correlations)
-    end
-  end
-  
-  defp count_pairs_within_radius(embedded_data, radius) do
-    embedded_data
-    |> Enum.with_index()
-    |> Enum.map(fn {point1, i} ->
-      embedded_data
-      |> Enum.drop(i + 1)
-      |> Enum.count(fn point2 -> euclidean_distance(point1, point2) < radius end)
-    end)
-    |> Enum.sum()
-  end
-  
-  defp euclidean_distance(point1, point2) do
-    point1
-    |> Enum.zip(point2)
-    |> Enum.map(fn {x, y} -> (x - y) * (x - y) end)
-    |> Enum.sum()
-    |> :math.sqrt()
-  end
-  
-  defp estimate_slope(correlations) do
-    log_data = Enum.map(correlations, fn {r, c} -> {:math.log(r), :math.log(c)} end)
-    
-    n = length(log_data)
-    sum_x = Enum.sum(Enum.map(log_data, fn {x, _} -> x end))
-    sum_y = Enum.sum(Enum.map(log_data, fn {_, y} -> y end))
-    sum_xy = Enum.sum(Enum.map(log_data, fn {x, y} -> x * y end))
-    sum_x2 = Enum.sum(Enum.map(log_data, fn {x, _} -> x * x end))
-    
-    if n * sum_x2 - sum_x * sum_x == 0 do
-      0.0
-    else
-      (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
-    end
-  end
-end
-```
-
-```elixir
-# Analyze different systems
 systems = [
   {"Sine Wave", VisualizationHelpers.generate_sine_wave(300, 2.0, 1.0, 0.1)},
   {"Lorenz Attractor", VisualizationHelpers.generate_lorenz_attractor(500, 0.01)},
@@ -307,19 +242,16 @@ systems = [
 
 analysis_results = Enum.map(systems, fn {name, data} ->
   embedded = DelayEmbedding.embed_auto(data)
-  estimated_dim = DelayEmbedding.estimate_embedding_dimension(data)
-  estimated_delay = DelayEmbedding.estimate_delay(data)
-  
   %{
     system: name,
     data_length: length(data),
-    estimated_dimension: estimated_dim,
-    estimated_delay: estimated_delay,
+    estimated_dimension: DelayEmbedding.estimate_embedding_dimension(data),
+    estimated_delay: DelayEmbedding.estimate_delay(data),
+    correlation_dimension: DelayEmbedding.correlation_dimension(embedded),
     embedded_points: length(embedded)
   }
 end)
 
-# Display results
 Kino.DataTable.new(analysis_results, name: "Embedding Analysis Results")
 ```
 
@@ -333,14 +265,3 @@ Kino.DataTable.new(analysis_results, name: "Embedding Analysis Results")
    * Simple periodic systems create closed curves
    * Chaotic systems create complex, non-overlapping structures
 4. **Different systems** require different embedding parameters for optimal reconstruction
-
-## Further Exploration
-
-Try modifying the parameters and exploring different time series:
-
-* Experiment with different noise levels
-* Try different frequencies for the sine wave
-* Adjust the parameters of the chaotic systems
-* Implement more sophisticated parameter estimation methods
-
-This LiveBook demonstrates the power of delay embedding for analyzing time series data and provides a foundation for more advanced dynamical systems analysis.
